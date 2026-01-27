@@ -36,7 +36,7 @@ public class InvoiceController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<InvoiceDTO>> createInvoice(@Valid @RequestBody InvoiceDTO invoiceDTO) {
-        logger.info("Creating new invoice for customer: {}", invoiceDTO.getCustomerName());
+        logger.info("Creating new invoice for employee/client: {}", invoiceDTO.getEmployeeName());
         try {
             InvoiceDTO savedInvoice = invoiceService.createInvoice(invoiceDTO);
             return ResponseEntity.status(HttpStatus.CREATED)
