@@ -82,13 +82,39 @@ public class PdfService {
                         // but keeping it for now if it was intended.
                         // The user specifically asked for the logo ABOVE SIGNATURE.
 
-                        Paragraph companyName = new Paragraph("Ory Folks Pvt Ltd")
-                                        .setFont(regularFont)
-                                        .setFontSize(10)
+                        com.invoiceapp.dto.CompanyInfoDTO company = invoice.getCompanyInfo();
+                        String cName = (company != null && company.getCompanyName() != null) ? company.getCompanyName()
+                                        : "Your Company";
+                        String cAddress = (company != null && company.getCompanyAddress() != null)
+                                        ? company.getCompanyAddress()
+                                        : "";
+
+                        // ✅ TOP LOGO (Optional)
+                        if (company != null && company.getCompanyLogoUrl() != null) {
+                                try {
+                                        // Attempt to load the company logo
+                                        String logoPath = company.getCompanyLogoUrl();
+                                        // If it's a URL, use it directly; if a relative path, we'd need to resolve it.
+                                        // For now, assume it's accessible or handled gracefully.
+                                        if (logoPath.startsWith("http")) {
+                                                ImageData logoData = ImageDataFactory.create(logoPath);
+                                                Image logoImg = new Image(logoData).setHeight(convertMmToPoints(15));
+                                                document.add(logoImg.setFixedPosition(convertMmToPoints(14),
+                                                                PAGE_HEIGHT - convertMmToPoints(25),
+                                                                convertMmToPoints(40)));
+                                        }
+                                } catch (Exception e) {
+                                        System.err.println("Could not load company logo: " + e.getMessage());
+                                }
+                        }
+
+                        Paragraph companyHeader = new Paragraph()
+                                        .add(new Text(cName + "\n").setFont(boldFont).setFontSize(11))
+                                        .add(new Text(cAddress).setFont(regularFont).setFontSize(9))
                                         .setFixedPosition(convertMmToPoints(14),
-                                                        PAGE_HEIGHT - yPos,
+                                                        PAGE_HEIGHT - convertMmToPoints(25),
                                                         convertMmToPoints(100));
-                        document.add(companyName);
+                        document.add(companyHeader);
 
                         float rightX = convertMmToPoints(160);
                         yPos = convertMmToPoints(18);
@@ -221,13 +247,24 @@ public class PdfService {
                                         .setWidth(UnitValue.createPercentValue(100))
                                         .setMarginTop(50);
 
+                        com.invoiceapp.dto.BankDetailsDTO bank = (company != null) ? company.getBankDetails() : null;
+                        String bName = (bank != null && bank.getBankName() != null) ? bank.getBankName() : "";
+                        String bAcc = (bank != null && bank.getAccountNumber() != null) ? bank.getAccountNumber() : "";
+                        String bIfsc = (bank != null && bank.getIfscCode() != null) ? bank.getIfscCode() : "";
+                        String bHolder = (bank != null && bank.getAccountHolderName() != null)
+                                        ? bank.getAccountHolderName()
+                                        : "";
+                        String bBranch = (bank != null && bank.getBranchName() != null) ? bank.getBranchName() : "";
+
                         Paragraph bankPara = new Paragraph()
                                         .add(new Text("Bank Details:\n").setFont(boldFont).setFontSize(10))
                                         .add(new Text(
-                                                        "Account Name: Ory Folks Pvt Ltd\n" +
-                                                                        "Account No: 123456789012\n" +
-                                                                        "IFSC: SBIN0001234\n" +
-                                                                        "Branch Code: 01234")
+                                                        "Bank: " + bName + "\n" +
+                                                                        "Acc Name: " + bHolder + "\n" +
+                                                                        "Acc No: " + bAcc + "\n" +
+                                                                        "IFSC: " + bIfsc
+                                                                        + (bBranch.isEmpty() ? ""
+                                                                                        : "\nBranch: " + bBranch))
                                                         .setFont(regularFont).setFontSize(10));
 
                         footerTable.addCell(new Cell().setBorder(Border.NO_BORDER).add(bankPara));
