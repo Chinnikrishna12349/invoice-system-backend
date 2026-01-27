@@ -72,10 +72,17 @@ public class BrevoEmailService implements InitializingBean {
     @Override
     public void afterPropertiesSet() {
         if (!StringUtils.hasText(brevoApiKey) || "NONE".equals(brevoApiKey)) {
-            System.err.println("CRITICAL: Brevo API key is NOT configured or set to 'NONE'.");
+            System.err.println("CRITICAL: Brevo API key is NOT configured or set to 'NONE' in environment.");
         } else {
-            System.out.println("BrevoEmailService initialized with sender: " + senderName + " <" + senderEmail + ">");
+            String trimmedKey = brevoApiKey.trim();
+            System.out.println("BrevoEmailService initialized. Key length: " + trimmedKey.length());
+            if (trimmedKey.startsWith("xkeysib-")) {
+                System.out.println("API Key format looks correct (starts with xkeysib-).");
+            } else {
+                System.err.println("WARNING: API Key does NOT start with 'xkeysib-'. This is likely wrong.");
+            }
         }
+        System.out.println("Brevo sender configured as: " + senderName + " <" + senderEmail + ">");
     }
 
     @Async
@@ -241,8 +248,21 @@ public class BrevoEmailService implements InitializingBean {
                                                 logger.error(errorMessage);
 
                                                 if (clientResponse.statusCode() == HttpStatus.UNAUTHORIZED) {
+                                                    String trimmedKey = brevoApiKey != null ? brevoApiKey.trim() : "";
+                                                    System.err.println(
+                                                            "CRITICAL: 401 Unauthorized from Brevo. Key length: "
+                                                                    + trimmedKey.length());
+                                                    if (trimmedKey.length() > 0) {
+                                                        System.err
+                                                                .println("Key starts with: " + (trimmedKey.length() > 10
+                                                                        ? trimmedKey.substring(0, 10)
+                                                                        : "short"));
+                                                        System.err.println("Key ends with: " + (trimmedKey.length() > 5
+                                                                ? trimmedKey.substring(trimmedKey.length() - 5)
+                                                                : "short"));
+                                                    }
                                                     return Mono.error(new SecurityException(
-                                                            "Invalid Brevo API key. Please check your configuration."));
+                                                            "Invalid Brevo API key. Please check your configuration (401)."));
                                                 } else if (clientResponse
                                                         .statusCode() == HttpStatus.TOO_MANY_REQUESTS) {
                                                     return Mono.error(new IllegalStateException(
