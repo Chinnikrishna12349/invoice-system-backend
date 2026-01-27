@@ -74,15 +74,29 @@ public class BrevoEmailService implements InitializingBean {
         if (!StringUtils.hasText(brevoApiKey) || "NONE".equals(brevoApiKey)) {
             System.err.println("CRITICAL: Brevo API key is NOT configured or set to 'NONE' in environment.");
         } else {
-            String trimmedKey = brevoApiKey.trim();
-            System.out.println("BrevoEmailService initialized. Key length: " + trimmedKey.length());
-            if (trimmedKey.startsWith("xkeysib-")) {
+            String cleanedKey = cleanKey(brevoApiKey);
+            System.out.println("BrevoEmailService initialized. Raw length: " + brevoApiKey.length()
+                    + ", Cleaned length: " + cleanedKey.length());
+            if (cleanedKey.startsWith("xkeysib-")) {
                 System.out.println("API Key format looks correct (starts with xkeysib-).");
             } else {
-                System.err.println("WARNING: API Key does NOT start with 'xkeysib-'. This is likely wrong.");
+                System.err.println("WARNING: API Key does NOT start with 'xkeysib-'. Current start: "
+                        + (cleanedKey.length() > 8 ? cleanedKey.substring(0, 8) : cleanedKey));
             }
         }
         System.out.println("Brevo sender configured as: " + senderName + " <" + senderEmail + ">");
+    }
+
+    private String cleanKey(String key) {
+        if (key == null)
+            return "";
+        String cleaned = key.trim();
+        if (cleaned.startsWith("\"") && cleaned.endsWith("\"")) {
+            cleaned = cleaned.substring(1, cleaned.length() - 1).trim();
+        } else if (cleaned.startsWith("'") && cleaned.endsWith("'")) {
+            cleaned = cleaned.substring(1, cleaned.length() - 1).trim();
+        }
+        return cleaned;
     }
 
     @Async
@@ -248,21 +262,20 @@ public class BrevoEmailService implements InitializingBean {
                                                 logger.error(errorMessage);
 
                                                 if (clientResponse.statusCode() == HttpStatus.UNAUTHORIZED) {
-                                                    String trimmedKey = brevoApiKey != null ? brevoApiKey.trim() : "";
-                                                    System.err.println(
-                                                            "CRITICAL: 401 Unauthorized from Brevo. Key length: "
-                                                                    + trimmedKey.length());
-                                                    if (trimmedKey.length() > 0) {
-                                                        System.err
-                                                                .println("Key starts with: " + (trimmedKey.length() > 10
-                                                                        ? trimmedKey.substring(0, 10)
-                                                                        : "short"));
-                                                        System.err.println("Key ends with: " + (trimmedKey.length() > 5
-                                                                ? trimmedKey.substring(trimmedKey.length() - 5)
+                                                    String cleanedKey = cleanKey(brevoApiKey);
+                                                    System.err.println("CRITICAL: 401 Unauthorized from Brevo. Error: "
+                                                            + errorBody);
+                                                    System.err.println("Cleaned key length: " + cleanedKey.length());
+                                                    if (cleanedKey.length() > 0) {
+                                                        System.err.println("Key prefix: " + (cleanedKey.length() > 10
+                                                                ? cleanedKey.substring(0, 10)
+                                                                : "short"));
+                                                        System.err.println("Key suffix: " + (cleanedKey.length() > 5
+                                                                ? cleanedKey.substring(cleanedKey.length() - 5)
                                                                 : "short"));
                                                     }
                                                     return Mono.error(new SecurityException(
-                                                            "Invalid Brevo API key. Please check your configuration (401)."));
+                                                            "Invalid Brevo API key. Brevo says: " + errorBody));
                                                 } else if (clientResponse
                                                         .statusCode() == HttpStatus.TOO_MANY_REQUESTS) {
                                                     return Mono.error(new IllegalStateException(
