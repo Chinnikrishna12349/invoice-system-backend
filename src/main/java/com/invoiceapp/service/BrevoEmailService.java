@@ -244,9 +244,10 @@ public class BrevoEmailService implements InitializingBean {
                     attempt++;
                     logger.debug("Sending email attempt {}/{}", attempt, MAX_RETRIES);
 
+                    String cleanedKey = cleanKey(brevoApiKey);
                     Map<String, Object> response = brevoWebClient.post()
                             .uri(BREVO_API_PATH)
-                            .header("api-key", brevoApiKey != null ? brevoApiKey.trim() : "")
+                            .header("api-key", cleanedKey)
                             .contentType(MediaType.APPLICATION_JSON)
                             .bodyValue(request)
                             .retrieve()
@@ -260,9 +261,10 @@ public class BrevoEmailService implements InitializingBean {
                                                         "Brevo API request failed with status %s: %s",
                                                         statusCode, errorBody);
                                                 logger.error(errorMessage);
+                                                logger.error("Request details - Sender: {}, Recipient: {}", senderEmail,
+                                                        recipientEmail);
 
                                                 if (clientResponse.statusCode() == HttpStatus.UNAUTHORIZED) {
-                                                    String cleanedKey = cleanKey(brevoApiKey);
                                                     System.err.println("CRITICAL: 401 Unauthorized from Brevo. Error: "
                                                             + errorBody);
                                                     System.err.println("Cleaned key length: " + cleanedKey.length());

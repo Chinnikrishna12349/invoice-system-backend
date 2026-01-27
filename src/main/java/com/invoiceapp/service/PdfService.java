@@ -18,10 +18,8 @@ import com.itextpdf.layout.element.Table;
 import com.itextpdf.layout.element.Cell;
 import com.itextpdf.layout.element.Text;
 import com.itextpdf.layout.borders.Border;
-import com.itextpdf.layout.borders.SolidBorder;
 import com.itextpdf.kernel.colors.DeviceRgb;
 import com.itextpdf.kernel.colors.ColorConstants;
-import com.itextpdf.io.font.PdfEncodings;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
@@ -57,15 +55,10 @@ public class PdfService {
                         PdfFont boldFont;
                         PdfFont regularFont;
                         try {
-                                // Attempt to load system Arial font which supports Rupee symbol
-                                String fontPath = "C:/Windows/Fonts/arial.ttf";
-                                String boldFontPath = "C:/Windows/Fonts/arialbd.ttf";
-
-                                boldFont = PdfFontFactory.createFont(boldFontPath, PdfEncodings.IDENTITY_H);
-                                regularFont = PdfFontFactory.createFont(fontPath, PdfEncodings.IDENTITY_H);
+                                boldFont = PdfFontFactory.createFont(StandardFonts.HELVETICA_BOLD);
+                                regularFont = PdfFontFactory.createFont(StandardFonts.HELVETICA);
                         } catch (Exception e) {
-                                // Fallback to Helvetica (No Rupee support, but safe)
-                                System.err.println("Could not load system font: " + e.getMessage());
+                                // Fallback
                                 boldFont = PdfFontFactory.createFont(StandardFonts.HELVETICA_BOLD);
                                 regularFont = PdfFontFactory.createFont(StandardFonts.HELVETICA);
                         }
@@ -97,18 +90,31 @@ public class PdfService {
                                         // If it's a URL, use it directly; if a relative path, we'd need to resolve it.
                                         // For now, assume it's accessible or handled gracefully.
                                         if (logoPath != null && !logoPath.isEmpty()) {
-                                                // Resolve relative or localhost URLs to the current backend
-                                                if (logoPath.contains("localhost:8080")
-                                                                || !logoPath.startsWith("http")) {
-                                                        logoPath = logoPath.replace("http://localhost:8080",
-                                                                        "https://invoice-system-backend-owhd.onrender.com");
-                                                        if (!logoPath.startsWith("http")) {
-                                                                logoPath = "https://invoice-system-backend-owhd.onrender.com"
-                                                                                + (logoPath.startsWith("/") ? "" : "/")
-                                                                                + logoPath;
-                                                        }
+                                                String localPath = logoPath;
+                                                if (localPath.startsWith("/uploads/")) {
+                                                        localPath = localPath.substring("/uploads/".length());
                                                 }
-                                                ImageData logoData = ImageDataFactory.create(logoPath);
+                                                File localFile = new File("uploads/" + localPath);
+
+                                                ImageData logoData;
+                                                if (localFile.exists()) {
+                                                        logoData = ImageDataFactory.create(localFile.getAbsolutePath());
+                                                } else {
+                                                        // Fallback to URL resolution
+                                                        if (logoPath.contains("localhost:8080")
+                                                                        || !logoPath.startsWith("http")) {
+                                                                logoPath = logoPath.replace("http://localhost:8080",
+                                                                                "https://invoice-system-backend-owhd.onrender.com");
+                                                                if (!logoPath.startsWith("http")) {
+                                                                        logoPath = "https://invoice-system-backend-owhd.onrender.com"
+                                                                                        + (logoPath.startsWith("/") ? ""
+                                                                                                        : "/")
+                                                                                        + logoPath;
+                                                                }
+                                                        }
+                                                        logoData = ImageDataFactory.create(logoPath);
+                                                }
+
                                                 Image logoImg = new Image(logoData).setHeight(convertMmToPoints(15));
                                                 document.add(logoImg.setFixedPosition(convertMmToPoints(14),
                                                                 PAGE_HEIGHT - convertMmToPoints(25),
@@ -351,9 +357,9 @@ public class PdfService {
         // Helper for dynamic currency formatting
         private String formatCurrency(double amount, String country) {
                 if ("japan".equalsIgnoreCase(country)) {
-                        return String.format("¥%,.0f", amount);
+                        return String.format(Locale.US, "Yen %,.0f", amount);
                 } else {
-                        return String.format("₹%,.2f", amount);
+                        return String.format(Locale.US, "Rs %,.2f", amount);
                 }
         }
 
