@@ -33,7 +33,7 @@ import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.cos.COSName;
 
 @Service
-public class BrevoEmailService implements InitializingBean {
+public class BrevoEmailService implements EmailService, InitializingBean {
 
     private static final Logger logger = LoggerFactory.getLogger(BrevoEmailService.class);
     private static final String BREVO_API_PATH = "/smtp/email";
@@ -102,7 +102,12 @@ public class BrevoEmailService implements InitializingBean {
     @Async
     public void sendInvoiceEmail(InvoiceDTO invoice) {
         try {
-            System.out.println("Generating PDF on background for invoice #" + invoice.getInvoiceNumber());
+            System.out.println("=== Sending Email (Async) ===");
+            System.out.println("From: " + senderName + " <" + senderEmail + ">");
+            System.out.println("To: " + (invoice != null ? invoice.getEmployeeEmail() : "null"));
+            System.out.println("Generating PDF on background for invoice #"
+                    + (invoice != null ? invoice.getInvoiceNumber() : "unknown"));
+
             byte[] pdfBytes = pdfService.generateInvoicePdf(invoice);
             sendInvoiceEmailWithPdf(invoice, pdfBytes);
         } catch (Exception e) {
@@ -155,6 +160,12 @@ public class BrevoEmailService implements InitializingBean {
         if (pdfBytes == null || pdfBytes.length == 0) {
             throw new IllegalArgumentException("PDF content cannot be null or empty");
         }
+
+        System.out.println("=== Sending Email with PDF Attachment (Async) ===");
+        System.out.println("From: " + senderName + " <" + senderEmail + ">");
+        System.out.println("To: " + invoice.getEmployeeEmail());
+        System.out.println("PDF Size: " + pdfBytes.length + " bytes");
+        System.out.println("==============================================");
 
         logger.info("Original PDF size: {} KB", pdfBytes.length / 1024);
 
