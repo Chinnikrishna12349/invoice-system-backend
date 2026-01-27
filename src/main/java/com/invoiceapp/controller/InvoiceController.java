@@ -12,6 +12,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.List;
 
 @RestController
@@ -20,6 +22,8 @@ import java.util.List;
         RequestMethod.PUT,
         RequestMethod.DELETE, RequestMethod.OPTIONS })
 public class InvoiceController {
+
+    private static final Logger logger = LoggerFactory.getLogger(InvoiceController.class);
 
     @Autowired
     private InvoiceService invoiceService;
@@ -32,13 +36,13 @@ public class InvoiceController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<InvoiceDTO>> createInvoice(@Valid @RequestBody InvoiceDTO invoiceDTO) {
-        System.out.println("Creating new invoice");
+        logger.info("Creating new invoice for customer: {}", invoiceDTO.getCustomerName());
         try {
             InvoiceDTO savedInvoice = invoiceService.createInvoice(invoiceDTO);
             return ResponseEntity.status(HttpStatus.CREATED)
                     .body(ApiResponse.success("Invoice created successfully", savedInvoice));
         } catch (Exception e) {
-            System.out.println("Error creating invoice: " + e.getMessage());
+            logger.error("Error creating invoice: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ApiResponse.error("Failed to create invoice", e.getMessage()));
         }
@@ -48,12 +52,12 @@ public class InvoiceController {
     public ResponseEntity<ApiResponse<InvoiceDTO>> updateInvoice(
             @PathVariable String id,
             @Valid @RequestBody InvoiceDTO invoiceDTO) {
-        System.out.println("Updating invoice: " + id);
+        logger.info("Updating invoice: {}", id);
         try {
             InvoiceDTO updatedInvoice = invoiceService.updateInvoice(id, invoiceDTO);
             return ResponseEntity.ok(ApiResponse.success("Invoice updated successfully", updatedInvoice));
         } catch (Exception e) {
-            System.out.println("Error updating invoice: " + e.getMessage());
+            logger.error("Error updating invoice {}: {}", id, e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ApiResponse.error("Failed to update invoice", e.getMessage()));
         }
@@ -61,12 +65,12 @@ public class InvoiceController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<InvoiceDTO>>> getAllInvoices(@RequestParam(required = false) String userId) {
-        System.out.println("Fetching all invoices" + (userId != null ? " for user: " + userId : ""));
+        logger.info("Fetching all invoices{}", (userId != null ? " for user: " + userId : ""));
         try {
             List<InvoiceDTO> invoices = invoiceService.getAllInvoices(userId);
             return ResponseEntity.ok(ApiResponse.success("Invoices retrieved successfully", invoices));
         } catch (Exception e) {
-            System.out.println("Error fetching invoices: " + e.getMessage());
+            logger.error("Error fetching invoices: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ApiResponse.error("Failed to fetch invoices", e.getMessage()));
         }
@@ -74,12 +78,12 @@ public class InvoiceController {
 
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<InvoiceDTO>> getInvoiceById(@PathVariable String id) {
-        System.out.println("Fetching invoice: " + id);
+        logger.info("Fetching invoice: {}", id);
         try {
             InvoiceDTO invoice = invoiceService.getInvoiceById(id);
             return ResponseEntity.ok(ApiResponse.success("Invoice retrieved successfully", invoice));
         } catch (Exception e) {
-            System.out.println("Error fetching invoice: " + e.getMessage());
+            logger.error("Error fetching invoice {}: {}", id, e.getMessage());
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(ApiResponse.error("Invoice not found", e.getMessage()));
         }
@@ -87,12 +91,12 @@ public class InvoiceController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteInvoice(@PathVariable String id) {
-        System.out.println("Deleting invoice: " + id);
+        logger.info("Deleting invoice: {}", id);
         try {
             invoiceService.deleteInvoice(id);
             return ResponseEntity.ok(ApiResponse.success("Invoice deleted successfully", null));
         } catch (Exception e) {
-            System.out.println("Error deleting invoice: " + e.getMessage());
+            logger.error("Error deleting invoice {}: {}", id, e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ApiResponse.error("Failed to delete invoice", e.getMessage()));
         }
@@ -130,23 +134,23 @@ public class InvoiceController {
     @PostMapping(value = "/{id}/send-email", produces = { "application/json" })
     public ResponseEntity<ApiResponse<Void>> sendInvoiceEmail(@PathVariable String id,
             @RequestBody(required = false) byte[] pdfBytes) {
-        System.out.println("Sending invoice email: " + id);
+        logger.info("Sending invoice email: {}", id);
         try {
             InvoiceDTO invoice = invoiceService.getInvoiceById(id);
 
             // If PDF bytes are provided (from frontend), use them; otherwise generate on
             // backend
             if (pdfBytes != null && pdfBytes.length > 0) {
-                System.out.println("Using frontend-generated PDF (" + pdfBytes.length + " bytes)");
+                logger.info("Using frontend-generated PDF ({} bytes)", pdfBytes.length);
                 emailService.sendInvoiceEmailWithPdf(invoice, pdfBytes);
             } else {
-                System.out.println("Generating PDF on backend");
+                logger.info("Generating PDF on backend");
                 emailService.sendInvoiceEmail(invoice);
             }
 
             return ResponseEntity.ok(ApiResponse.success("Email sent successfully"));
         } catch (Exception e) {
-            System.out.println("Error sending email: " + e.getMessage());
+            logger.error("Error sending email for invoice {}: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ApiResponse.error("Failed to send email", e.getMessage()));
         }
