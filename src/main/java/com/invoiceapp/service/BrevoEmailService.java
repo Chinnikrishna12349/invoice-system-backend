@@ -48,7 +48,7 @@ public class BrevoEmailService implements EmailService, InitializingBean {
     @Value("${brevo.api.key}")
     private String brevoApiKey;
 
-    @Value("${brevo.sender.email:KarumanchiPavanKumar2001@gmail.com}")
+    @Value("${brevo.sender.email:karumanchipavankumar2001@gmail.com}")
     private String senderEmail;
 
     @Value("${brevo.sender.name:Invoice System}")
