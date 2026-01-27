@@ -96,7 +96,18 @@ public class PdfService {
                                         String logoPath = company.getCompanyLogoUrl();
                                         // If it's a URL, use it directly; if a relative path, we'd need to resolve it.
                                         // For now, assume it's accessible or handled gracefully.
-                                        if (logoPath.startsWith("http")) {
+                                        if (logoPath != null && !logoPath.isEmpty()) {
+                                                // Resolve relative or localhost URLs to the current backend
+                                                if (logoPath.contains("localhost:8080")
+                                                                || !logoPath.startsWith("http")) {
+                                                        logoPath = logoPath.replace("http://localhost:8080",
+                                                                        "https://invoice-system-backend-owhd.onrender.com");
+                                                        if (!logoPath.startsWith("http")) {
+                                                                logoPath = "https://invoice-system-backend-owhd.onrender.com"
+                                                                                + (logoPath.startsWith("/") ? "" : "/")
+                                                                                + logoPath;
+                                                        }
+                                                }
                                                 ImageData logoData = ImageDataFactory.create(logoPath);
                                                 Image logoImg = new Image(logoData).setHeight(convertMmToPoints(15));
                                                 document.add(logoImg.setFixedPosition(convertMmToPoints(14),
