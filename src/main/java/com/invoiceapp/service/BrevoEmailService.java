@@ -228,10 +228,13 @@ public class BrevoEmailService implements EmailService, InitializingBean {
             // Create email request
             Map<String, Object> request = new HashMap<>();
 
-            // Sender
+            // Sender (Force lowercase for Brevo case-sensitivity)
+            String finalSenderEmail = senderEmail != null ? senderEmail.trim().toLowerCase() : "";
             request.put("sender", Map.of(
                     "name", senderName,
-                    "email", senderEmail));
+                    "email", finalSenderEmail));
+
+            logger.info("ACTUAL SENDER being sent to Brevo: {}", finalSenderEmail);
 
             // Recipient
             request.put("to", List.of(Map.of(
@@ -406,11 +409,14 @@ public class BrevoEmailService implements EmailService, InitializingBean {
     private Map<String, Object> buildEmailRequest(InvoiceDTO invoice, String recipientEmail) {
         Map<String, Object> request = new HashMap<>();
 
-        // Sender
+        // Sender (Force lowercase for Brevo case-sensitivity)
+        String finalSenderEmail = senderEmail != null ? senderEmail.trim().toLowerCase() : "";
         Map<String, String> sender = new HashMap<>();
-        sender.put("email", senderEmail);
+        sender.put("email", finalSenderEmail);
         sender.put("name", senderName);
         request.put("sender", sender);
+
+        logger.info("ACTUAL SENDER being sent to Brevo: {}", finalSenderEmail);
 
         // Recipient
         Map<String, String> to = new HashMap<>();
@@ -681,8 +687,11 @@ public class BrevoEmailService implements EmailService, InitializingBean {
                     senderName);
 
             // Build the email request
+            String finalSenderEmail = senderEmail != null ? senderEmail.trim().toLowerCase() : "";
             Map<String, Object> emailRequest = new HashMap<>();
-            emailRequest.put("sender", Map.of("name", senderName, "email", senderEmail));
+            emailRequest.put("sender", Map.of("name", senderName, "email", finalSenderEmail));
+
+            logger.info("ACTUAL SENDER being sent to Brevo: {}", finalSenderEmail);
             emailRequest.put("to", List.of(Map.of(
                     "email", invoice.getEmployeeEmail(),
                     "name",
