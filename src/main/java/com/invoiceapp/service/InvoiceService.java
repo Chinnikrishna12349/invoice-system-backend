@@ -123,8 +123,30 @@ public class InvoiceService {
         invoice.setTaxRate(dto.getTaxRate());
         invoice.setCountry(dto.getCountry());
         invoice.setUserId(dto.getUserId());
-        // Map company info if needed (DTO to Entity) - skipping complex mapping for now
-        // or need helper
+        invoice.setUserId(dto.getUserId());
+
+        // Map CompanyInfo DTO to Entity
+        if (dto.getCompanyInfo() != null) {
+            com.invoiceapp.entity.CompanyInfo companyInfo = new com.invoiceapp.entity.CompanyInfo();
+            companyInfo.setId(dto.getCompanyInfo().getId());
+            companyInfo.setCompanyName(dto.getCompanyInfo().getCompanyName());
+            companyInfo.setCompanyAddress(dto.getCompanyInfo().getCompanyAddress());
+            companyInfo.setCompanyLogoUrl(dto.getCompanyInfo().getCompanyLogoUrl());
+
+            if (dto.getCompanyInfo().getBankDetails() != null) {
+                com.invoiceapp.entity.BankDetails bankDetails = new com.invoiceapp.entity.BankDetails();
+                bankDetails.setBankName(dto.getCompanyInfo().getBankDetails().getBankName());
+                bankDetails.setAccountNumber(dto.getCompanyInfo().getBankDetails().getAccountNumber());
+                bankDetails.setAccountHolderName(dto.getCompanyInfo().getBankDetails().getAccountHolderName());
+                bankDetails.setIfscCode(dto.getCompanyInfo().getBankDetails().getIfscCode());
+                bankDetails.setBranchName(dto.getCompanyInfo().getBankDetails().getBranchName());
+                bankDetails.setBranchCode(dto.getCompanyInfo().getBankDetails().getBranchCode());
+                bankDetails.setAccountType(dto.getCompanyInfo().getBankDetails().getAccountType());
+                companyInfo.setBankDetails(bankDetails);
+            }
+            invoice.setCompanyInfo(companyInfo);
+        }
+
         return invoice;
     }
 
@@ -133,7 +155,29 @@ public class InvoiceService {
         dto.setId(entity.getId());
         dto.setInvoiceNumber(entity.getInvoiceNumber());
         dto.setUserId(entity.getUserId());
-        // Map company info entity to DTO if needed
+        dto.setUserId(entity.getUserId());
+
+        // Map CompanyInfo Entity to DTO
+        if (entity.getCompanyInfo() != null) {
+            com.invoiceapp.dto.CompanyInfoDTO companyInfoDTO = new com.invoiceapp.dto.CompanyInfoDTO();
+            companyInfoDTO.setId(entity.getCompanyInfo().getId());
+            companyInfoDTO.setCompanyName(entity.getCompanyInfo().getCompanyName());
+            companyInfoDTO.setCompanyAddress(entity.getCompanyInfo().getCompanyAddress());
+            companyInfoDTO.setCompanyLogoUrl(entity.getCompanyInfo().getCompanyLogoUrl());
+
+            if (entity.getCompanyInfo().getBankDetails() != null) {
+                com.invoiceapp.dto.BankDetailsDTO bankDetailsDTO = new com.invoiceapp.dto.BankDetailsDTO();
+                bankDetailsDTO.setBankName(entity.getCompanyInfo().getBankDetails().getBankName());
+                bankDetailsDTO.setAccountNumber(entity.getCompanyInfo().getBankDetails().getAccountNumber());
+                bankDetailsDTO.setAccountHolderName(entity.getCompanyInfo().getBankDetails().getAccountHolderName());
+                bankDetailsDTO.setIfscCode(entity.getCompanyInfo().getBankDetails().getIfscCode());
+                bankDetailsDTO.setBranchName(entity.getCompanyInfo().getBankDetails().getBranchName());
+                bankDetailsDTO.setBranchCode(entity.getCompanyInfo().getBankDetails().getBranchCode());
+                bankDetailsDTO.setAccountType(entity.getCompanyInfo().getBankDetails().getAccountType());
+                companyInfoDTO.setBankDetails(bankDetailsDTO);
+            }
+            dto.setCompanyInfo(companyInfoDTO);
+        }
 
         dto.setDate(entity.getDate());
         dto.setDueDate(entity.getDueDate()); // Added due date mapping
