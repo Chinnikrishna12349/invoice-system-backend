@@ -4,6 +4,7 @@ import com.invoiceapp.dto.InvoiceDTO;
 import com.itextpdf.io.font.constants.StandardFonts;
 import com.itextpdf.io.image.ImageData;
 import com.itextpdf.io.image.ImageDataFactory;
+import com.itextpdf.io.font.PdfEncodings;
 import com.itextpdf.kernel.font.PdfFont;
 import com.itextpdf.kernel.font.PdfFontFactory;
 import com.itextpdf.kernel.pdf.*;
@@ -55,10 +56,34 @@ public class PdfService {
                         PdfFont boldFont;
                         PdfFont regularFont;
                         try {
-                                boldFont = PdfFontFactory.createFont(StandardFonts.HELVETICA_BOLD);
-                                regularFont = PdfFontFactory.createFont(StandardFonts.HELVETICA);
+                                // Try to load a Unicode font (common in Linux/Render environments)
+                                String[] fontPaths = {
+                                                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+                                                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+                                                "C:/Windows/Fonts/arialbd.ttf" // Local Windows fallback for dev
+                                };
+                                String fontPath = null;
+                                for (String path : fontPaths) {
+                                        if (new File(path).exists()) {
+                                                fontPath = path;
+                                                break;
+                                        }
+                                }
+
+                                if (fontPath != null) {
+                                        boldFont = PdfFontFactory.createFont(fontPath, PdfEncodings.IDENTITY_H);
+                                        String regularPath = fontPath.replace("-Bold", "").replace("bd", ""); // Simple
+                                                                                                              // attempt
+                                                                                                              // to find
+                                                                                                              // regular
+                                        regularFont = PdfFontFactory.createFont(regularPath, PdfEncodings.IDENTITY_H);
+                                } else {
+                                        // Fallback to standard fonts (Rupee symbol might not show)
+                                        boldFont = PdfFontFactory.createFont(StandardFonts.HELVETICA_BOLD);
+                                        regularFont = PdfFontFactory.createFont(StandardFonts.HELVETICA);
+                                }
                         } catch (Exception e) {
-                                // Fallback
+                                // Ultimate Fallback
                                 boldFont = PdfFontFactory.createFont(StandardFonts.HELVETICA_BOLD);
                                 regularFont = PdfFontFactory.createFont(StandardFonts.HELVETICA);
                         }
@@ -82,43 +107,51 @@ public class PdfService {
                                         ? company.getCompanyAddress()
                                         : "";
 
-                        // ✅ TOP LOGO (Optional)
+                        // ✅ TOP LOGO (Robust Loading)
                         if (company != null && company.getCompanyLogoUrl() != null) {
                                 try {
-                                        // Attempt to load the company logo
                                         String logoPath = company.getCompanyLogoUrl();
-                                        // If it's a URL, use it directly; if a relative path, we'd need to resolve it.
-                                        // For now, assume it's accessible or handled gracefully.
-                                        if (logoPath != null && !logoPath.isEmpty()) {
-                                                String localPath = logoPath;
-                                                if (localPath.startsWith("/uploads/")) {
-                                                        localPath = localPath.substring("/uploads/".length());
-                                                }
-                                                File localFile = new File("uploads/" + localPath);
+                                        ImageData logoData = null;
 
-                                                ImageData logoData;
-                                                if (localFile.exists()) {
-                                                        logoData = ImageDataFactory.create(localFile.getAbsolutePath());
-                                                } else {
-                                                        // Fallback to URL resolution
-                                                        if (logoPath.contains("localhost:8080")
-                                                                        || !logoPath.startsWith("http")) {
-                                                                logoPath = logoPath.replace("http://localhost:8080",
-                                                                                "https://invoice-system-backend-owhd.onrender.com");
-                                                                if (!logoPath.startsWith("http")) {
-                                                                        logoPath = "https://invoice-system-backend-owhd.onrender.com"
-                                                                                        + (logoPath.startsWith("/") ? ""
-                                                                                                        : "/")
-                                                                                        + logoPath;
-                                                                }
-                                                        }
+                                        // Strategy 1: Check local uploads directory (stripped of URL)
+                                        String filename = logoPath;
+                                        if (filename.contains("/uploads/")) {
+                                                filename = filename.substring(filename.indexOf("/uploads/") + 9);
+                                        } else if (filename.contains("/")) {
+                                                filename = filename.substring(filename.lastIndexOf("/") + 1);
+                                        }
+
+                                        File localFile = new File("uploads/" + filename);
+                                        if (localFile.exists()) {
+                                                logoData = ImageDataFactory.create(localFile.getAbsolutePath());
+                                        }
+                                        // Strategy 2: Try absolute path if provided
+                                        else if (new File(logoPath).exists()) {
+                                                logoData = ImageDataFactory.create(logoPath);
+                                        }
+                                        // Strategy 3: Try URL
+                                        else {
+                                                if (logoPath.contains("localhost")) {
+                                                        // Replace localhost with internal container path if needed, or
+                                                        // skip
+                                                        // Ideally, we rely on the file system strategy above.
+                                                }
+                                                try {
                                                         logoData = ImageDataFactory.create(logoPath);
+                                                } catch (Exception ignored) {
+                                                        // URL fetch failed
                                                 }
+                                        }
 
-                                                Image logoImg = new Image(logoData).setHeight(convertMmToPoints(15));
+                                        if (logoData != null) {
+                                                Image logoImg = new Image(logoData);
+                                                // Resize logic: constrain width or height
+                                                logoImg.setHeight(convertMmToPoints(20));
+                                                logoImg.setAutoScale(true); // Maintain aspect ratio
+
                                                 document.add(logoImg.setFixedPosition(convertMmToPoints(14),
-                                                                PAGE_HEIGHT - convertMmToPoints(25),
-                                                                convertMmToPoints(40)));
+                                                                PAGE_HEIGHT - convertMmToPoints(30),
+                                                                convertMmToPoints(50)));
                                         }
                                 } catch (Exception e) {
                                         System.err.println("Could not load company logo: " + e.getMessage());
@@ -357,9 +390,10 @@ public class PdfService {
         // Helper for dynamic currency formatting
         private String formatCurrency(double amount, String country) {
                 if ("japan".equalsIgnoreCase(country)) {
-                        return String.format(Locale.US, "Yen %,.0f", amount);
+                        return String.format(Locale.US, "¥ %,.0f", amount);
                 } else {
-                        return String.format(Locale.US, "Rs %,.2f", amount);
+                        // Default to India/Rupee
+                        return String.format(Locale.US, "₹ %,.2f", amount);
                 }
         }
 
