@@ -39,11 +39,7 @@
             <artifactId>spring-boot-starter-data-mongodb</artifactId>
         </dependency>
      
-<dependency>
-    <groupId>org.apache.pdfbox</groupId>
-    <artifactId>pdfbox</artifactId>
-    <version>2.0.29</version> <!-- Using a stable version that includes FlateFilter -->
-</dependency>
+
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -117,11 +113,23 @@
             <groupId>org.apache.pdfbox</groupId>
             <artifactId>pdfbox</artifactId>
             <version>2.0.29</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>commons-logging</groupId>
+                    <artifactId>commons-logging</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.apache.pdfbox</groupId>
             <artifactId>pdfbox-tools</artifactId>
             <version>2.0.29</version>
+            <exclusions>
+                <exclusion>
+                     <groupId>commons-logging</groupId>
+                     <artifactId>commons-logging</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- Freemarker for email templates -->
