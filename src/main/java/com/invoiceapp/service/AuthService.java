@@ -24,9 +24,6 @@ public class AuthService {
     @Autowired
     private JwtService jwtService;
 
-    @Autowired
-    private FileStorageService fileStorageService;
-
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     public LoginResponse login(LoginRequest loginRequest) {
@@ -84,14 +81,18 @@ public class AuthService {
 
         User savedUser = userRepository.save(user);
 
-        // Store company logo if provided
+        // Store company logo as Base64 for permanent persistence on ephemeral
+        // filesystems like Render
         String logoUrl = null;
         if (signupRequest.getCompanyLogo() != null && !signupRequest.getCompanyLogo().isEmpty()) {
             try {
-                logoUrl = fileStorageService.storeFile(signupRequest.getCompanyLogo(), savedUser.getId());
+                logoUrl = convertToBase64(signupRequest.getCompanyLogo());
+                System.out.println("Logo converted to Base64, length: " + logoUrl.length());
             } catch (Exception e) {
-                // If logo upload fails, continue without logo
-                System.err.println("Failed to store company logo: " + e.getMessage());
+                System.err.println("Failed to convert company logo to Base64: " + e.getMessage());
+                e.printStackTrace();
+                // Do NOT fallback to file storage - it won't persist on Render
+                throw new RuntimeException("Failed to process company logo: " + e.getMessage(), e);
             }
         }
 
@@ -106,8 +107,7 @@ public class AuthService {
                     bankDto.getIfscCode(),
                     bankDto.getBranchName(),
                     bankDto.getBranchCode(),
-                    bankDto.getAccountType() // Added accountType
-            );
+                    bankDto.getAccountType());
         }
 
         // Create company info
@@ -153,7 +153,70 @@ public class AuthService {
         return new SignupResponse(token, savedUser.getId(), savedUser.getEmail(), companyInfoDTO);
     }
 
-    // Helper method to hash password (for creating users manually or via admin)
+    public CompanyInfoDTO updateCompanyInfo(String userId, SignupRequest updateRequest) throws Exception {
+        System.out.println("Updating company info for user: " + userId);
+        Optional<CompanyInfo> companyOpt = companyInfoRepository.findByUserId(userId);
+        if (companyOpt.isEmpty()) {
+            throw new IllegalArgumentException("Company info not found");
+        }
+
+        CompanyInfo companyInfo = companyOpt.get();
+        if (updateRequest.getCompanyName() != null)
+            companyInfo.setCompanyName(updateRequest.getCompanyName().trim());
+        if (updateRequest.getCompanyAddress() != null)
+            companyInfo.setCompanyAddress(updateRequest.getCompanyAddress().trim());
+        if (updateRequest.getInvoiceFormat() != null)
+            companyInfo.setInvoiceFormat(updateRequest.getInvoiceFormat());
+
+        if (updateRequest.getCompanyLogo() != null && !updateRequest.getCompanyLogo().isEmpty()) {
+            companyInfo.setCompanyLogoUrl(convertToBase64(updateRequest.getCompanyLogo()));
+        }
+
+        if (updateRequest.getBankDetails() != null) {
+            BankDetailsDTO bankDto = updateRequest.getBankDetails();
+            BankDetails bankDetails = new BankDetails(
+                    bankDto.getBankName(),
+                    bankDto.getAccountNumber(),
+                    bankDto.getAccountHolderName(),
+                    bankDto.getIfscCode(),
+                    bankDto.getBranchName(),
+                    bankDto.getBranchCode(),
+                    bankDto.getAccountType());
+            companyInfo.setBankDetails(bankDetails);
+        }
+
+        companyInfo.setUpdatedAt(java.time.LocalDateTime.now());
+        CompanyInfo savedCompany = companyInfoRepository.save(companyInfo);
+
+        // Convert to DTO
+        CompanyInfoDTO dto = new CompanyInfoDTO();
+        dto.setId(savedCompany.getId());
+        dto.setCompanyName(savedCompany.getCompanyName());
+        dto.setCompanyAddress(savedCompany.getCompanyAddress());
+        dto.setCompanyLogoUrl(savedCompany.getCompanyLogoUrl());
+
+        if (savedCompany.getBankDetails() != null) {
+            BankDetailsDTO bankDto = new BankDetailsDTO();
+            bankDto.setBankName(savedCompany.getBankDetails().getBankName());
+            bankDto.setAccountNumber(savedCompany.getBankDetails().getAccountNumber());
+            bankDto.setAccountHolderName(savedCompany.getBankDetails().getAccountHolderName());
+            bankDto.setIfscCode(savedCompany.getBankDetails().getIfscCode());
+            bankDto.setBranchName(savedCompany.getBankDetails().getBranchName());
+            bankDto.setBranchCode(savedCompany.getBankDetails().getBranchCode());
+            bankDto.setAccountType(savedCompany.getBankDetails().getAccountType());
+            dto.setBankDetails(bankDto);
+        }
+
+        return dto;
+    }
+
+    private String convertToBase64(org.springframework.web.multipart.MultipartFile file) throws java.io.IOException {
+        byte[] bytes = file.getBytes();
+        String base64 = java.util.Base64.getEncoder().encodeToString(bytes);
+        return "data:" + file.getContentType() + ";base64," + base64;
+    }
+
+    // Helper method to hash password
     public String hashPassword(String plainPassword) {
         return passwordEncoder.encode(plainPassword);
     }

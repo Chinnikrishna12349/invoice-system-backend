@@ -17,9 +17,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(originPatterns = "*", allowedHeaders = "*", methods = { RequestMethod.GET, RequestMethod.POST,
-        RequestMethod.PUT, RequestMethod.DELETE,
-        RequestMethod.OPTIONS })
 public class AuthController {
 
     @Autowired
@@ -184,6 +181,7 @@ public class AuthController {
 
     @GetMapping("/health")
     public ResponseEntity<Map<String, Object>> health() {
+        System.out.println("API: GET /health request received");
         Map<String, Object> health = new java.util.HashMap<>();
         health.put("status", "UP");
         health.put("service", "Auth Service");
@@ -195,6 +193,7 @@ public class AuthController {
     public ResponseEntity<ApiResponse<com.invoiceapp.dto.CompanyInfoDTO>> getCompanyInfo(
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
         try {
+            System.out.println("API: GET /company-info request received");
             // Extract token from Authorization header
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -250,6 +249,77 @@ public class AuthController {
         }
     }
 
+    @PutMapping(value = "/update-company", consumes = { "multipart/form-data" }, produces = { "application/json" })
+    public ResponseEntity<ApiResponse<com.invoiceapp.dto.CompanyInfoDTO>> updateCompany(
+            @RequestHeader(value = "Authorization") String authHeader,
+            @RequestParam(value = "companyName", required = false) String companyName,
+            @RequestParam(value = "companyAddress", required = false) String companyAddress,
+            @RequestParam(value = "companyLogo", required = false) MultipartFile companyLogo,
+            @RequestParam(value = "bankName", required = false) String bankName,
+            @RequestParam(value = "accountNumber", required = false) String accountNumber,
+            @RequestParam(value = "accountHolderName", required = false) String accountHolderName,
+            @RequestParam(value = "ifscCode", required = false) String ifscCode,
+            @RequestParam(value = "branchName", required = false) String branchName,
+            @RequestParam(value = "branchCode", required = false) String branchCode,
+            @RequestParam(value = "accountType", required = false) String accountType,
+            @RequestParam(value = "invoiceFormat", required = false) String invoiceFormat) {
+        try {
+            System.out.println("========================================");
+            System.out.println("API: PUT /api/auth/update-company request received");
+            System.out.println("Auth header present: " + (authHeader != null));
+            System.out.println("========================================");
+            // Extract token from Authorization header
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                System.out.println("API: Missing or invalid auth header");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(ApiResponse.error("Unauthorized", "Missing or invalid authorization token"));
+            }
+
+            String token = authHeader.substring(7);
+            String userId = jwtService.extractUserId(token);
+            if (userId == null || jwtService.isTokenExpired(token)) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(ApiResponse.error("Unauthorized", "Invalid or expired token"));
+            }
+
+            // Build update request
+            SignupRequest updateRequest = new SignupRequest();
+            updateRequest.setCompanyName(companyName);
+            updateRequest.setCompanyAddress(companyAddress);
+            updateRequest.setCompanyLogo(companyLogo);
+            updateRequest.setInvoiceFormat(invoiceFormat);
+
+            if (bankName != null) {
+                BankDetailsDTO bankDetails = new BankDetailsDTO();
+                bankDetails.setBankName(bankName);
+                bankDetails.setAccountNumber(accountNumber);
+                bankDetails.setAccountHolderName(accountHolderName);
+                bankDetails.setIfscCode(ifscCode);
+                bankDetails.setBranchName(branchName);
+                bankDetails.setBranchCode(branchCode);
+                bankDetails.setAccountType(accountType);
+                updateRequest.setBankDetails(bankDetails);
+            }
+
+            com.invoiceapp.dto.CompanyInfoDTO response = authService.updateCompanyInfo(userId, updateRequest);
+            return ResponseEntity.ok(ApiResponse.success("Company info updated successfully", response));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Update failed", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/update-company")
+    public ResponseEntity<Map<String, String>> testUpdateCompanyEndpoint() {
+        System.out.println("API: GET /api/auth/update-company test endpoint called");
+        Map<String, String> response = new java.util.HashMap<>();
+        response.put("status", "OK");
+        response.put("message", "Update company endpoint is accessible");
+        response.put("method", "Use PUT with multipart/form-data to update company info");
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping("/validate")
     public ResponseEntity<ApiResponse<Boolean>> validateToken(@RequestBody Map<String, String> request) {
         try {
@@ -270,5 +340,79 @@ public class AuthController {
             // Any exception means token is invalid
             return ResponseEntity.ok(ApiResponse.success("Token validation result", false));
         }
+    }
+
+    @GetMapping("/debug/uploads")
+    public ResponseEntity<Map<String, Object>> debugUploads() {
+        Map<String, Object> result = new java.util.HashMap<>();
+        try {
+            java.io.File uploadsDir = new java.io.File("uploads").getAbsoluteFile();
+            result.put("absolutePath", uploadsDir.getAbsolutePath());
+            result.put("exists", uploadsDir.exists());
+            result.put("isDirectory", uploadsDir.isDirectory());
+            result.put("canRead", uploadsDir.canRead());
+            result.put("canWrite", uploadsDir.canWrite());
+
+            if (uploadsDir.exists() && uploadsDir.isDirectory()) {
+                String[] files = uploadsDir.list();
+                result.put("fileCount", files != null ? files.length : 0);
+                result.put("files", files);
+            }
+        } catch (Exception e) {
+            result.put("error", e.getMessage());
+        }
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/check-logo")
+    public ResponseEntity<Map<String, Object>> checkLogo(
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        Map<String, Object> result = new java.util.HashMap<>();
+        try {
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                result.put("error", "No authorization token provided");
+                return ResponseEntity.ok(result);
+            }
+
+            String token = authHeader.substring(7);
+            String userId = jwtService.extractUserId(token);
+            if (userId == null) {
+                result.put("error", "Invalid token");
+                return ResponseEntity.ok(result);
+            }
+
+            java.util.Optional<com.invoiceapp.entity.CompanyInfo> companyOpt = authService
+                    .getCompanyInfoByUserId(userId);
+            if (companyOpt.isEmpty()) {
+                result.put("error", "No company info found");
+                return ResponseEntity.ok(result);
+            }
+
+            com.invoiceapp.entity.CompanyInfo companyInfo = companyOpt.get();
+            String logoUrl = companyInfo.getCompanyLogoUrl();
+
+            result.put("hasLogo", logoUrl != null);
+            if (logoUrl != null) {
+                result.put("logoUrlLength", logoUrl.length());
+                result.put("isBase64", logoUrl.startsWith("data:"));
+                result.put("isFilePath", logoUrl.startsWith("/uploads/"));
+                result.put("logoUrlPrefix", logoUrl.length() > 50 ? logoUrl.substring(0, 50) + "..." : logoUrl);
+
+                if (logoUrl.startsWith("/uploads/")) {
+                    result.put("warning",
+                            "Logo is stored as file path. This won't work on Render. Please re-upload your logo in Company Settings.");
+                    result.put("needsReupload", true);
+                } else if (logoUrl.startsWith("data:")) {
+                    result.put("status", "OK - Logo is stored as Base64");
+                    result.put("needsReupload", false);
+                } else {
+                    result.put("warning", "Unknown logo format");
+                    result.put("needsReupload", true);
+                }
+            }
+        } catch (Exception e) {
+            result.put("error", e.getMessage());
+        }
+        return ResponseEntity.ok(result);
     }
 }

@@ -37,36 +37,55 @@ public class UploadController {
     @GetMapping("/{filename:.+}")
     public ResponseEntity<Resource> serveFile(@PathVariable String filename) {
         try {
-            logger.info("Request to serve file: {}", filename);
-
-            // Resolve the file path
+            // Standardize path resolution
             Path uploadPath = Paths.get(uploadDir).toAbsolutePath().normalize();
             Path filePath = uploadPath.resolve(filename).normalize();
 
+            logger.info("Serving file request: '{}'", filename);
+            logger.info("  - Upload Base Dir: '{}'", uploadPath);
+            logger.info("  - Target File Path: '{}'", filePath);
+
             // Security check: ensure the file is within the upload directory
             if (!filePath.startsWith(uploadPath)) {
-                logger.warn("Attempted path traversal attack with filename: {}", filename);
+                logger.warn("SECURITY ALERT: Attempted path traversal! Request: '{}', Resolved: '{}'", filename,
+                        filePath);
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
             }
 
             // Check if file exists
-            if (!Files.exists(filePath) || !Files.isRegularFile(filePath)) {
-                logger.warn("File not found: {}", filePath);
+            if (!Files.exists(filePath)) {
+                logger.error("File NOT FOUND at path: '{}'", filePath);
+                // List files in directory to help debugging (be careful with this in prod, but
+                // essential here)
+                try (var stream = Files.list(uploadPath)) {
+                    String availableFiles = stream.map(p -> p.getFileName().toString())
+                            .reduce((a, b) -> a + ", " + b)
+                            .orElse("EMPTY DIRECTORY");
+                    logger.info("  - Available files in upload dir: [{}]", availableFiles);
+                } catch (Exception e) {
+                    logger.warn("  - Could not list directory contents: {}", e.getMessage());
+                }
                 return ResponseEntity.notFound().build();
+            }
+
+            // Check for file vs folder
+            if (!Files.isRegularFile(filePath)) {
+                logger.warn("Path exists but is NOT a regular file: '{}'", filePath);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
             }
 
             // Load file as Resource
             Resource resource = new UrlResource(filePath.toUri());
 
             if (!resource.exists() || !resource.isReadable()) {
-                logger.warn("File exists but is not readable: {}", filePath);
+                logger.error("File exists but CANNOT BE READ (permissions?): '{}'", filePath);
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
             }
 
             // Determine content type
             String contentType = determineContentType(filePath);
 
-            logger.info("Successfully serving file: {} (type: {}, size: {} bytes)",
+            logger.info("Successfully serving '{}' (Content-Type: {}, Size: {} bytes)",
                     filename, contentType, Files.size(filePath));
 
             // Return the file with appropriate headers
