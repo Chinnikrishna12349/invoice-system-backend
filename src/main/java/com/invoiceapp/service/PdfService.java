@@ -13,7 +13,6 @@ import com.itextpdf.layout.element.Image;
 import com.itextpdf.layout.element.Paragraph;
 import com.itextpdf.layout.properties.TextAlignment;
 import com.itextpdf.layout.properties.HorizontalAlignment;
-import com.itextpdf.layout.properties.VerticalAlignment;
 import com.itextpdf.layout.properties.UnitValue;
 import com.itextpdf.layout.element.Table;
 import com.itextpdf.layout.element.Cell;
@@ -108,7 +107,10 @@ public class PdfService {
                                         : "";
 
                         // ✅ TOP LOGO (Robust Loading)
-                        if (company != null && company.getCompanyLogoUrl() != null) {
+                        boolean isVisionAI = "Vision AI LLC".equalsIgnoreCase(cName);
+
+                        // ✅ TOP LOGO (Robust Loading) - ONLY for Vision AI
+                        if (isVisionAI && company != null && company.getCompanyLogoUrl() != null) {
                                 try {
                                         String logoPath = company.getCompanyLogoUrl();
                                         ImageData logoData = null;
@@ -131,11 +133,6 @@ public class PdfService {
                                         }
                                         // Strategy 3: Try URL
                                         else {
-                                                if (logoPath.contains("localhost")) {
-                                                        // Replace localhost with internal container path if needed, or
-                                                        // skip
-                                                        // Ideally, we rely on the file system strategy above.
-                                                }
                                                 try {
                                                         logoData = ImageDataFactory.create(logoPath);
                                                 } catch (Exception ignored) {
@@ -145,7 +142,6 @@ public class PdfService {
 
                                         if (logoData != null) {
                                                 Image logoImg = new Image(logoData);
-                                                // Resize logic: constrain width or height
                                                 logoImg.setHeight(convertMmToPoints(20));
                                                 logoImg.setAutoScale(true); // Maintain aspect ratio
 
@@ -202,10 +198,6 @@ public class PdfService {
 
                         document.add(toPara.setFixedPosition(convertMmToPoints(14), startY - convertMmToPoints(25),
                                         convertMmToPoints(80)));
-
-                        // Due Date (aligned with Bill To)
-                        // Calculate Due Date (e.g. +30 days or custom) - For now just show placeholder
-                        // or omitted if not in DTO
 
                         yPos += convertMmToPoints(45);
 
@@ -267,7 +259,9 @@ public class PdfService {
                                         .setHorizontalAlignment(HorizontalAlignment.RIGHT)
                                         .setMarginTop(20);
 
-                        double taxRate = invoice.getTaxRate() != null ? invoice.getTaxRate() : 0.0;
+                        boolean showTax = !"japan".equalsIgnoreCase(invoice.getCountry())
+                                        || (invoice.getShowConsumptionTax() != null && invoice.getShowConsumptionTax());
+                        double taxRate = showTax ? (invoice.getTaxRate() != null ? invoice.getTaxRate() : 0.0) : 0.0;
                         double tax = subtotal * (taxRate / 100.0);
                         double grandTotal = subtotal + tax;
 
@@ -275,12 +269,15 @@ public class PdfService {
                         totalTable.addCell(createTotalCell(formatCurrency(subtotal, invoice.getCountry()), regularFont,
                                         11));
 
-                        String taxLabel = "japan".equalsIgnoreCase(invoice.getCountry())
-                                        ? String.format("Consumption Tax (%.0f%%)", taxRate)
-                                        : String.format("Tax (%.0f%%)", taxRate);
+                        if (showTax) {
+                                String taxLabel = "japan".equalsIgnoreCase(invoice.getCountry())
+                                                ? String.format("Consumption Tax (%.0f%%)", taxRate)
+                                                : String.format("Tax (%.0f%%)", taxRate);
 
-                        totalTable.addCell(createTotalCell(taxLabel, regularFont, 11));
-                        totalTable.addCell(createTotalCell(formatCurrency(tax, invoice.getCountry()), regularFont, 11));
+                                totalTable.addCell(createTotalCell(taxLabel, regularFont, 11));
+                                totalTable.addCell(createTotalCell(formatCurrency(tax, invoice.getCountry()),
+                                                regularFont, 11));
+                        }
 
                         totalTable.addCell(createTotalCell("Grand Total", boldFont, 12)
                                         .setBackgroundColor(new DeviceRgb(245, 245, 245))
@@ -298,67 +295,79 @@ public class PdfService {
                                         .setMarginTop(50);
 
                         com.invoiceapp.dto.BankDetailsDTO bank = (company != null) ? company.getBankDetails() : null;
-                        String bName = (bank != null && bank.getBankName() != null) ? bank.getBankName() : "";
-                        String bAcc = (bank != null && bank.getAccountNumber() != null) ? bank.getAccountNumber() : "";
-                        String bIfsc = (bank != null && bank.getIfscCode() != null) ? bank.getIfscCode() : "";
-                        String bHolder = (bank != null && bank.getAccountHolderName() != null)
-                                        ? bank.getAccountHolderName()
-                                        : "";
-                        String bBranch = (bank != null && bank.getBranchName() != null) ? bank.getBranchName() : "";
 
-                        Paragraph bankPara = new Paragraph()
-                                        .add(new Text("Bank Details:\n").setFont(boldFont).setFontSize(10))
-                                        .add(new Text(
-                                                        "Bank: " + bName + "\n" +
-                                                                        "Acc Name: " + bHolder + "\n" +
-                                                                        "Acc No: " + bAcc + "\n" +
-                                                                        "IFSC: " + bIfsc
-                                                                        + (bBranch.isEmpty() ? ""
-                                                                                        : "\nBranch: " + bBranch))
-                                                        .setFont(regularFont).setFontSize(10));
+                        if (isVisionAI && bank != null) {
+                                String bName = getValue(bank.getBankName());
+                                String bAcc = getValue(bank.getAccountNumber());
+                                String bIfsc = getValue(bank.getIfscCode());
+                                String bHolder = getValue(bank.getAccountHolderName());
+                                String bBranch = getValue(bank.getBranchName());
+                                String bBranchCode = getValue(bank.getBranchCode());
+                                String bAccType = getValue(bank.getAccountType());
 
-                        footerTable.addCell(new Cell().setBorder(Border.NO_BORDER).add(bankPara));
+                                Paragraph bankPara = new Paragraph()
+                                                .add(new Text("Bank Details:\n").setFont(boldFont).setFontSize(10))
+                                                .setMarginBottom(5);
 
-                        // Load and add the static VisionAI stamp
-                        try (InputStream stampStream = getClass().getClassLoader()
-                                        .getResourceAsStream("visionai-stamp.png")) {
-                                if (stampStream != null) {
-                                        ImageData stampData = ImageDataFactory.create(stampStream.readAllBytes());
-                                        Image stamp = new Image(stampData);
-                                        float stampSize = convertMmToPoints(25);
+                                if (!bName.isEmpty())
+                                        bankPara.add(new Text("Bank Name: " + bName + "\n").setFont(boldFont)
+                                                        .setFontSize(11));
+                                if (!bBranch.isEmpty())
+                                        bankPara.add(new Text("Branch: " + bBranch + "\n").setFont(boldFont)
+                                                        .setFontSize(11));
+                                if (!bBranchCode.isEmpty())
+                                        bankPara.add(new Text("Branch Code: " + bBranchCode + "\n").setFont(boldFont)
+                                                        .setFontSize(11));
+                                if (!bAccType.isEmpty())
+                                        bankPara.add(new Text("Account Type: " + bAccType + "\n").setFont(boldFont)
+                                                        .setFontSize(11));
+                                if (!bAcc.isEmpty())
+                                        bankPara.add(new Text("Account No: " + bAcc + "\n").setFont(boldFont)
+                                                        .setFontSize(11));
+                                if (!bHolder.isEmpty())
+                                        bankPara.add(new Text("Account Holder: " + bHolder + "\n").setFont(boldFont)
+                                                        .setFontSize(11));
+                                if (!bIfsc.isEmpty())
+                                        bankPara.add(new Text("IFSC Code: " + bIfsc).setFont(boldFont).setFontSize(11));
 
-                                        // Position the stamp above the signature in the second cell
-                                        Cell signatureCell = new Cell().setBorder(Border.NO_BORDER);
-
-                                        // Add stamp to signature cell
-                                        stamp.setWidth(stampSize);
-                                        stamp.setHorizontalAlignment(HorizontalAlignment.CENTER);
-                                        signatureCell.add(stamp);
-
-                                        // Add Signature text
-                                        Paragraph signPara = new Paragraph("Authorised Signature")
-                                                        .setFont(boldFont)
-                                                        .setFontSize(10)
-                                                        .setTextAlignment(TextAlignment.CENTER)
-                                                        .setMarginTop(8);
-
-                                        signatureCell.add(signPara);
-                                        footerTable.addCell(signatureCell);
-                                } else {
-                                        Paragraph signPara = new Paragraph()
-                                                        .add("\n\n\n")
-                                                        .add("______________________\n")
-                                                        .add("Authorised Signature")
-                                                        .setFont(boldFont)
-                                                        .setFontSize(10)
-                                                        .setTextAlignment(TextAlignment.CENTER);
-
-                                        footerTable.addCell(new Cell()
-                                                        .setBorder(Border.NO_BORDER)
-                                                        .setVerticalAlignment(VerticalAlignment.BOTTOM)
-                                                        .add(signPara));
-                                }
+                                footerTable.addCell(new Cell().setBorder(Border.NO_BORDER).add(bankPara));
+                        } else {
+                                footerTable.addCell(new Cell().setBorder(Border.NO_BORDER));
                         }
+
+                        // Load and add the static VisionAI stamp ONLY for Vision AI
+                        Cell signatureCell = new Cell().setBorder(Border.NO_BORDER);
+                        if (isVisionAI) {
+                                try (InputStream stampStream = getClass().getClassLoader()
+                                                .getResourceAsStream("visionai-stamp.png")) {
+                                        if (stampStream != null) {
+                                                ImageData stampData = ImageDataFactory
+                                                                .create(stampStream.readAllBytes());
+                                                Image stamp = new Image(stampData);
+                                                float stampSize = convertMmToPoints(25);
+
+                                                stamp.setWidth(stampSize);
+                                                stamp.setHorizontalAlignment(HorizontalAlignment.CENTER);
+                                                signatureCell.add(stamp);
+                                        }
+                                } catch (Exception e) {
+                                        signatureCell.add(new Paragraph("\n\n\n"));
+                                }
+                        } else {
+                                signatureCell.add(new Paragraph("\n\n\n"));
+                                signatureCell.add(new Paragraph("______________________\n")
+                                                .setTextAlignment(TextAlignment.CENTER));
+                        }
+
+                        // Add Signature text
+                        Paragraph signPara = new Paragraph("Authorised Signature")
+                                        .setFont(boldFont)
+                                        .setFontSize(10)
+                                        .setTextAlignment(TextAlignment.CENTER)
+                                        .setMarginTop(8);
+
+                        signatureCell.add(signPara);
+                        footerTable.addCell(signatureCell);
 
                         document.add(footerTable);
 

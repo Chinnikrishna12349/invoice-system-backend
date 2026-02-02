@@ -39,12 +39,14 @@ public class InvoiceService {
         invoice.setDate(invoiceDTO.getDate());
         invoice.setDueDate(invoiceDTO.getDueDate()); // Added due date mapping
         invoice.setEmployeeName(invoiceDTO.getEmployeeName());
-        invoice.setEmployeeId(invoiceDTO.getEmployeeId());
         invoice.setEmployeeEmail(invoiceDTO.getEmployeeEmail());
         invoice.setEmployeeAddress(invoiceDTO.getEmployeeAddress());
         invoice.setEmployeeMobile(invoiceDTO.getEmployeeMobile());
         invoice.setServices(invoiceDTO.getServices());
         invoice.setTaxRate(invoiceDTO.getTaxRate());
+        invoice.setCgstRate(invoiceDTO.getCgstRate());
+        invoice.setSgstRate(invoiceDTO.getSgstRate());
+        invoice.setShowConsumptionTax(invoiceDTO.getShowConsumptionTax());
         invoice.setUpdatedAt(LocalDateTime.now());
 
         Invoice updatedInvoice = invoiceRepository.save(invoice);
@@ -81,14 +83,6 @@ public class InvoiceService {
         return getAllInvoices(null);
     }
 
-    public List<InvoiceDTO> getInvoicesByEmployeeId(String employeeId) {
-        System.out.println("Fetching invoices for employee: " + employeeId);
-        return invoiceRepository.findByEmployeeIdOrderByCreatedAtDesc(employeeId)
-                .stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-    }
-
     @Autowired
     private com.invoiceapp.repository.CompanyInfoRepository companyInfoRepository;
 
@@ -115,12 +109,14 @@ public class InvoiceService {
         invoice.setDate(dto.getDate());
         invoice.setDueDate(dto.getDueDate()); // Added due date mapping
         invoice.setEmployeeName(dto.getEmployeeName());
-        invoice.setEmployeeId(dto.getEmployeeId());
         invoice.setEmployeeEmail(dto.getEmployeeEmail());
         invoice.setEmployeeAddress(dto.getEmployeeAddress());
         invoice.setEmployeeMobile(dto.getEmployeeMobile());
         invoice.setServices(dto.getServices());
         invoice.setTaxRate(dto.getTaxRate());
+        invoice.setCgstRate(dto.getCgstRate());
+        invoice.setSgstRate(dto.getSgstRate());
+        invoice.setShowConsumptionTax(dto.getShowConsumptionTax());
         invoice.setCountry(dto.getCountry());
         invoice.setUserId(dto.getUserId());
         invoice.setUserId(dto.getUserId());
@@ -182,12 +178,14 @@ public class InvoiceService {
         dto.setDate(entity.getDate());
         dto.setDueDate(entity.getDueDate()); // Added due date mapping
         dto.setEmployeeName(entity.getEmployeeName());
-        dto.setEmployeeId(entity.getEmployeeId());
         dto.setEmployeeEmail(entity.getEmployeeEmail());
         dto.setEmployeeAddress(entity.getEmployeeAddress());
         dto.setEmployeeMobile(entity.getEmployeeMobile());
         dto.setServices(entity.getServices());
         dto.setTaxRate(entity.getTaxRate());
+        dto.setCgstRate(entity.getCgstRate());
+        dto.setSgstRate(entity.getSgstRate());
+        dto.setShowConsumptionTax(entity.getShowConsumptionTax());
         dto.setCountry(entity.getCountry());
         dto.setCreatedAt(entity.getCreatedAt() != null ? entity.getCreatedAt().toString() : null);
         dto.setUpdatedAt(entity.getUpdatedAt() != null ? entity.getUpdatedAt().toString() : null);

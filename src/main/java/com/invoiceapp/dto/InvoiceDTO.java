@@ -16,8 +16,6 @@ public class InvoiceDTO {
     private String dueDate; // Added due date
     @NotBlank(message = "Employee name is required")
     private String employeeName;
-    @NotBlank(message = "Employee ID is required")
-    private String employeeId;
     @NotBlank(message = "Employee email is required")
     @Email(message = "Email should be valid")
     private String employeeEmail;
@@ -29,11 +27,14 @@ public class InvoiceDTO {
     private List<ServiceItem> services;
     @NotNull(message = "Tax rate is required")
     private Double taxRate;
+    private Double cgstRate;
+    private Double sgstRate;
     private String createdAt;
     private String updatedAt;
     private String country;
     private String userId; // For data isolation
     private com.invoiceapp.dto.CompanyInfoDTO companyInfo; // Snapshot
+    private Boolean showConsumptionTax;
 
     @Transient
     private byte[] pdfContent;
@@ -41,14 +42,13 @@ public class InvoiceDTO {
     public InvoiceDTO() {
     }
 
-    public InvoiceDTO(String id, String invoiceNumber, String date, String employeeName, String employeeId,
+    public InvoiceDTO(String id, String invoiceNumber, String date, String employeeName,
             String employeeEmail, String employeeAddress, String employeeMobile,
             List<ServiceItem> services, Double taxRate, String createdAt, String updatedAt) {
         this.id = id;
         this.invoiceNumber = invoiceNumber;
         this.date = date;
         this.employeeName = employeeName;
-        this.employeeId = employeeId;
         this.employeeEmail = employeeEmail;
         this.employeeAddress = employeeAddress;
         this.employeeMobile = employeeMobile;
@@ -98,14 +98,6 @@ public class InvoiceDTO {
         this.employeeName = employeeName;
     }
 
-    public String getEmployeeId() {
-        return employeeId;
-    }
-
-    public void setEmployeeId(String employeeId) {
-        this.employeeId = employeeId;
-    }
-
     public String getEmployeeEmail() {
         return employeeEmail;
     }
@@ -146,6 +138,22 @@ public class InvoiceDTO {
         this.taxRate = taxRate;
     }
 
+    public Double getCgstRate() {
+        return cgstRate;
+    }
+
+    public void setCgstRate(Double cgstRate) {
+        this.cgstRate = cgstRate;
+    }
+
+    public Double getSgstRate() {
+        return sgstRate;
+    }
+
+    public void setSgstRate(Double sgstRate) {
+        this.sgstRate = sgstRate;
+    }
+
     public String getCreatedAt() {
         return createdAt;
     }
@@ -167,6 +175,15 @@ public class InvoiceDTO {
     }
 
     public Double getTaxAmount() {
+        if ("india".equalsIgnoreCase(country)) {
+            double cgst = (cgstRate != null ? cgstRate : 0.0);
+            double sgst = (sgstRate != null ? sgstRate : 0.0);
+            return getSubTotal() * ((cgst + sgst) / 100.0);
+        }
+        // For Japan, only calculate tax if showConsumptionTax is true
+        if ("japan".equalsIgnoreCase(country) && (showConsumptionTax == null || !showConsumptionTax)) {
+            return 0.0;
+        }
         return getSubTotal() * (taxRate / 100.0);
     }
 
@@ -183,7 +200,9 @@ public class InvoiceDTO {
     }
 
     public String getCompanyName() {
-        // Return a default company name or modify as needed
+        if (companyInfo != null && companyInfo.getCompanyName() != null) {
+            return companyInfo.getCompanyName();
+        }
         return "Your Company Name";
     }
 
@@ -209,5 +228,13 @@ public class InvoiceDTO {
 
     public void setCompanyInfo(com.invoiceapp.dto.CompanyInfoDTO companyInfo) {
         this.companyInfo = companyInfo;
+    }
+
+    public Boolean getShowConsumptionTax() {
+        return showConsumptionTax;
+    }
+
+    public void setShowConsumptionTax(Boolean showConsumptionTax) {
+        this.showConsumptionTax = showConsumptionTax;
     }
 }

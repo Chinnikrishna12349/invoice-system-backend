@@ -8,10 +8,14 @@ import java.util.Optional;
 
 @Repository
 public interface InvoiceRepository extends MongoRepository<Invoice, String> {
-    List<Invoice> findByEmployeeIdOrderByCreatedAtDesc(String employeeId);
+
     List<Invoice> findAllByOrderByCreatedAtDesc();
+
     Optional<Invoice> findByInvoiceNumber(String invoiceNumber);
+
     List<Invoice> findByEmployeeEmail(String email);
+
     List<Invoice> findByUserIdOrderByCreatedAtDesc(String userId);
+
     long countByUserId(String userId);
 }

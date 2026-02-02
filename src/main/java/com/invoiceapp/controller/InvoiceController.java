@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.util.StringUtils;
 import java.util.List;
 
 @RestController
@@ -33,6 +35,9 @@ public class InvoiceController {
 
     @Autowired
     private PdfService pdfService;
+
+    @Value("${brevo.api.key}")
+    private String brevoApiKey;
 
     @PostMapping
     public ResponseEntity<ApiResponse<InvoiceDTO>> createInvoice(@Valid @RequestBody InvoiceDTO invoiceDTO) {
@@ -136,19 +141,27 @@ public class InvoiceController {
             @RequestBody(required = false) byte[] pdfBytes) {
         logger.info("Sending invoice email: {}", id);
         try {
+            // Log configuration status for debugging
+            if (!StringUtils.hasText(brevoApiKey) || "NONE".equals(brevoApiKey)) {
+                logger.warn(
+                        "Email sending requested but Brevo API key is not configured (Value: {}). Proceeding to service for detailed error logging.",
+                        brevoApiKey);
+            }
+
             InvoiceDTO invoice = invoiceService.getInvoiceById(id);
 
             // If PDF bytes are provided (from frontend), use them; otherwise generate on
             // backend
             if (pdfBytes != null && pdfBytes.length > 0) {
-                logger.info("Using frontend-generated PDF ({} bytes)", pdfBytes.length);
+                logger.info("Using frontend-generated PDF for invoice #{} ({} bytes)", invoice.getInvoiceNumber(),
+                        pdfBytes.length);
                 emailService.sendInvoiceEmailWithPdf(invoice, pdfBytes);
             } else {
-                logger.info("Generating PDF on backend");
+                logger.info("Generating PDF on backend for invoice #{}", invoice.getInvoiceNumber());
                 emailService.sendInvoiceEmail(invoice);
             }
 
-            return ResponseEntity.ok(ApiResponse.success("Email sent successfully"));
+            return ResponseEntity.ok(ApiResponse.success("Email sent successfully to " + invoice.getEmployeeEmail()));
         } catch (Exception e) {
             logger.error("Error sending email for invoice {}: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -156,16 +169,4 @@ public class InvoiceController {
         }
     }
 
-    @GetMapping("/employee/{employeeId}")
-    public ResponseEntity<ApiResponse<List<InvoiceDTO>>> getInvoicesByEmployee(@PathVariable String employeeId) {
-        System.out.println("Fetching invoices for employee: " + employeeId);
-        try {
-            List<InvoiceDTO> invoices = invoiceService.getInvoicesByEmployeeId(employeeId);
-            return ResponseEntity.ok(ApiResponse.success("Invoices retrieved successfully", invoices));
-        } catch (Exception e) {
-            System.out.println("Error fetching employee invoices: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("Failed to fetch invoices", e.getMessage()));
-        }
-    }
 }

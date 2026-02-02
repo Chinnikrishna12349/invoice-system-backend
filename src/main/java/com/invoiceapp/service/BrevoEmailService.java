@@ -9,7 +9,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -99,7 +98,7 @@ public class BrevoEmailService implements EmailService, InitializingBean {
         return cleaned;
     }
 
-    @Async
+    // @Async - Disabled for debugging to surface errors to the UI
     public void sendInvoiceEmail(InvoiceDTO invoice) {
         try {
             System.out.println("=== Sending Email (Async) ===");
@@ -111,11 +110,12 @@ public class BrevoEmailService implements EmailService, InitializingBean {
             byte[] pdfBytes = pdfService.generateInvoicePdf(invoice);
             sendInvoiceEmailWithPdf(invoice, pdfBytes);
         } catch (Exception e) {
-            System.err.println("Error generating PDF in background: " + e.getMessage());
+            System.err.println("Error generating PDF or sending email in background: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
-    @Async
+    // @Async - Disabled for debugging to surface errors to the UI
     public void sendInvoiceEmail(InvoiceDTO invoice, String recipientEmail) {
         if (invoice == null) {
             throw new IllegalArgumentException("Invoice cannot be null");
@@ -152,7 +152,7 @@ public class BrevoEmailService implements EmailService, InitializingBean {
     }
 
     @SuppressWarnings("unchecked")
-    @Async
+    // @Async - Disabled for debugging to surface errors to the UI
     public void sendInvoiceEmailWithPdf(InvoiceDTO invoice, byte[] pdfBytes) {
         if (invoice == null) {
             throw new IllegalArgumentException("Invoice cannot be null");
@@ -258,7 +258,13 @@ public class BrevoEmailService implements EmailService, InitializingBean {
                     attempt++;
                     logger.debug("Sending email attempt {}/{}", attempt, MAX_RETRIES);
 
+                    System.out.println(
+                            "DEBUG: Preparing to send request to Brevo API for invoice #" + invoice.getInvoiceNumber());
                     String cleanedKey = cleanKey(brevoApiKey);
+                    System.out.println(
+                            "DEBUG: API Key prefix: " + (cleanedKey.length() > 8 ? cleanedKey.substring(0, 8) : "short")
+                                    + " (total length: " + cleanedKey.length() + ")");
+
                     Map<String, Object> response = brevoWebClient.post()
                             .uri(BREVO_API_PATH)
                             .header("api-key", cleanedKey)
@@ -274,6 +280,7 @@ public class BrevoEmailService implements EmailService, InitializingBean {
                                                 String errorMessage = String.format(
                                                         "Brevo API request failed with status %s: %s",
                                                         statusCode, errorBody);
+                                                System.err.println("BREVO ERROR: " + errorMessage);
                                                 logger.error(errorMessage);
                                                 logger.error("Request details - Sender: {}, Recipient: {}", senderEmail,
                                                         recipientEmail);
@@ -281,15 +288,6 @@ public class BrevoEmailService implements EmailService, InitializingBean {
                                                 if (clientResponse.statusCode() == HttpStatus.UNAUTHORIZED) {
                                                     System.err.println("CRITICAL: 401 Unauthorized from Brevo. Error: "
                                                             + errorBody);
-                                                    System.err.println("Cleaned key length: " + cleanedKey.length());
-                                                    if (cleanedKey.length() > 0) {
-                                                        System.err.println("Key prefix: " + (cleanedKey.length() > 10
-                                                                ? cleanedKey.substring(0, 10)
-                                                                : "short"));
-                                                        System.err.println("Key suffix: " + (cleanedKey.length() > 5
-                                                                ? cleanedKey.substring(cleanedKey.length() - 5)
-                                                                : "short"));
-                                                    }
                                                     return Mono.error(new SecurityException(
                                                             "Invalid Brevo API key. Brevo says: " + errorBody));
                                                 } else if (clientResponse
@@ -303,11 +301,14 @@ public class BrevoEmailService implements EmailService, InitializingBean {
                             .bodyToMono(Map.class)
                             .block();
 
+                    System.out.println("DEBUG: Brevo response received successfully");
+
                     if (response != null) {
                         String messageId = response.get("messageId") != null ? response.get("messageId").toString()
                                 : "unknown";
-                        logger.info("Successfully sent email with PDF attachment for invoice #{}. Message ID: {}",
-                                invoice.getInvoiceNumber(), messageId);
+                        logger.info(
+                                "Successfully sent email with PDF attachment for invoice #{}. Message ID: {}. Response: {}",
+                                invoice.getInvoiceNumber(), messageId, response);
                         return;
                     } else {
                         logger.warn("No response received from Brevo API for invoice #{}", invoice.getInvoiceNumber());
@@ -425,8 +426,13 @@ public class BrevoEmailService implements EmailService, InitializingBean {
         request.put("to", List.of(to));
 
         // Email content
-        request.put("subject", "Your Invoice #" + invoice.getInvoiceNumber());
+        String subject = String.format("Invoice #%s - %s",
+                invoice.getInvoiceNumber(),
+                invoice.getCompanyName());
+        request.put("subject", subject);
         request.put("htmlContent", buildEmailBody(invoice));
+
+        logger.info("Building text-only email request for Subject: {}", subject);
 
         return request;
     }
@@ -491,21 +497,40 @@ public class BrevoEmailService implements EmailService, InitializingBean {
                     .append(String.format("%.2f", invoice.getSubTotal())).append("</td>");
             body.append("</tr>");
 
-            if (invoice.getTaxRate() != null && invoice.getTaxRate() > 0) {
+            if ("india".equalsIgnoreCase(invoice.getCountry())) {
+                double cgst = (invoice.getCgstRate() != null ? invoice.getCgstRate() : 0.0);
+                double sgst = (invoice.getSgstRate() != null ? invoice.getSgstRate() : 0.0);
+                double cgstAmt = invoice.getSubTotal() * (cgst / 100.0);
+                double sgstAmt = invoice.getSubTotal() * (sgst / 100.0);
+
+                body.append("<tr style='font-weight: bold; background-color: #f8f9fa;'>");
+                body.append("<td colspan='3' style='padding: 12px; border: 1px solid #ddd; text-align: right;'>CGST (")
+                        .append(String.format("%.2f", cgst)).append("%):</td>");
+                body.append("<td style='padding: 12px; border: 1px solid #ddd; text-align: right;'>")
+                        .append(String.format("%.2f", cgstAmt)).append("</td>");
+                body.append("</tr>");
+
+                body.append("<tr style='font-weight: bold; background-color: #f8f9fa;'>");
+                body.append("<td colspan='3' style='padding: 12px; border: 1px solid #ddd; text-align: right;'>SGST (")
+                        .append(String.format("%.2f", sgst)).append("%):</td>");
+                body.append("<td style='padding: 12px; border: 1px solid #ddd; text-align: right;'>")
+                        .append(String.format("%.2f", sgstAmt)).append("</td>");
+                body.append("</tr>");
+            } else if (invoice.getTaxRate() != null && invoice.getTaxRate() > 0) {
                 body.append("<tr style='font-weight: bold; background-color: #f8f9fa;'>");
                 body.append("<td colspan='3' style='padding: 12px; border: 1px solid #ddd; text-align: right;'>Tax (")
                         .append(String.format("%.2f", invoice.getTaxRate())).append("%):</td>");
                 body.append("<td style='padding: 12px; border: 1px solid #ddd; text-align: right;'>")
                         .append(String.format("%.2f", invoice.getTaxAmount())).append("</td>");
                 body.append("</tr>");
-
-                body.append("<tr style='font-weight: bold; background-color: #f0f0f0;'>");
-                body.append(
-                        "<td colspan='3' style='padding: 12px; border: 1px solid #ddd; text-align: right;'>Grand Total:</td>");
-                body.append("<td style='padding: 12px; border: 1px solid #ddd; text-align: right;'>")
-                        .append(String.format("%.2f", invoice.getGrandTotal())).append("</td>");
-                body.append("</tr>");
             }
+
+            body.append("<tr style='font-weight: bold; background-color: #f0f0f0;'>");
+            body.append(
+                    "<td colspan='3' style='padding: 12px; border: 1px solid #ddd; text-align: right;'>Grand Total:</td>");
+            body.append("<td style='padding: 12px; border: 1px solid #ddd; text-align: right;'>")
+                    .append(String.format("%.2f", invoice.getGrandTotal())).append("</td>");
+            body.append("</tr>");
 
             // Add payment instructions and footer
             body.append(

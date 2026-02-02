@@ -14,23 +14,25 @@ public class Invoice {
     private String date;
     private String dueDate; // Added due date
     private String employeeName;
-    private String employeeId;
     private String employeeEmail;
     private String employeeAddress;
     private String employeeMobile;
     private List<ServiceItem> services;
     private Double taxRate;
+    private Double cgstRate;
+    private Double sgstRate;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private String createdBy;
     private String country; // india or japan
     private String userId; // Explicit user ID for isolation
     private com.invoiceapp.entity.CompanyInfo companyInfo; // Snapshot
+    private Boolean showConsumptionTax;
 
     public Invoice() {
     }
 
-    public Invoice(String id, String invoiceNumber, String date, String employeeName, String employeeId,
+    public Invoice(String id, String invoiceNumber, String date, String employeeName,
             String employeeEmail, String employeeAddress, String employeeMobile,
             List<ServiceItem> services, Double taxRate, LocalDateTime createdAt,
             LocalDateTime updatedAt, String createdBy, String country) {
@@ -38,7 +40,6 @@ public class Invoice {
         this.invoiceNumber = invoiceNumber;
         this.date = date;
         this.employeeName = employeeName;
-        this.employeeId = employeeId;
         this.employeeEmail = employeeEmail;
         this.employeeAddress = employeeAddress;
         this.employeeMobile = employeeMobile;
@@ -90,14 +91,6 @@ public class Invoice {
         this.employeeName = employeeName;
     }
 
-    public String getEmployeeId() {
-        return employeeId;
-    }
-
-    public void setEmployeeId(String employeeId) {
-        this.employeeId = employeeId;
-    }
-
     public String getEmployeeEmail() {
         return employeeEmail;
     }
@@ -136,6 +129,22 @@ public class Invoice {
 
     public void setTaxRate(Double taxRate) {
         this.taxRate = taxRate;
+    }
+
+    public Double getCgstRate() {
+        return cgstRate;
+    }
+
+    public void setCgstRate(Double cgstRate) {
+        this.cgstRate = cgstRate;
+    }
+
+    public Double getSgstRate() {
+        return sgstRate;
+    }
+
+    public void setSgstRate(Double sgstRate) {
+        this.sgstRate = sgstRate;
     }
 
     public LocalDateTime getCreatedAt() {
@@ -186,16 +195,12 @@ public class Invoice {
         this.companyInfo = companyInfo;
     }
 
-    public String getBillToName() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getBillToName'");
+    public Boolean getShowConsumptionTax() {
+        return showConsumptionTax;
     }
 
-    public class InvoiceItem {
+    public void setShowConsumptionTax(Boolean showConsumptionTax) {
+        this.showConsumptionTax = showConsumptionTax;
     }
 
-    public Object getSubtotal() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getSubtotal'");
-    }
 }
