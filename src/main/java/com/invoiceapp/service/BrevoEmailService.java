@@ -30,6 +30,9 @@ import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDResources;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.cos.COSName;
+import java.time.LocalDate;
+import java.time.format.TextStyle;
+import java.util.Locale;
 
 @Service
 public class BrevoEmailService implements EmailService, InitializingBean {
@@ -220,7 +223,19 @@ public class BrevoEmailService implements EmailService, InitializingBean {
         try {
             // Convert PDF to Base64
             String pdfBase64 = Base64.getEncoder().encodeToString(finalPdfBytes);
-            String filename = String.format("Invoice_%s.pdf", invoice.getInvoiceNumber());
+
+            // Generate dynamic filename: [InvoiceNumber] [ResourceName].pdf
+            String resourceName = "";
+            if (!CollectionUtils.isEmpty(invoice.getServices()) && invoice.getServices().get(0) != null) {
+                resourceName = invoice.getServices().get(0).getDescription();
+                // Clean up filename (remove invalid chars)
+                resourceName = resourceName.replaceAll("[\\\\/:*?\"<>|]", "_");
+                if (resourceName.length() > 50)
+                    resourceName = resourceName.substring(0, 50);
+            }
+            String filename = String.format("%s %s.pdf", invoice.getInvoiceNumber(), resourceName).trim();
+            if (filename.endsWith(".pdf") && filename.length() == 4)
+                filename = "Invoice_" + invoice.getInvoiceNumber() + ".pdf";
 
             // Build email content using the existing method
             String htmlContent = buildEmailBody(invoice);
@@ -451,7 +466,20 @@ public class BrevoEmailService implements EmailService, InitializingBean {
 
             String recipientName = StringUtils.hasText(invoice.getEmployeeName()) ? invoice.getEmployeeName()
                     : "Valued Customer";
+
+            // Get Month Name from invoice date
+            String monthName = "";
+            try {
+                if (StringUtils.hasText(invoice.getDate())) {
+                    LocalDate date = LocalDate.parse(invoice.getDate());
+                    monthName = date.getMonth().getDisplayName(TextStyle.FULL, Locale.ENGLISH);
+                }
+            } catch (Exception e) {
+                logger.warn("Could not parse invoice date for month name: {}", invoice.getDate());
+            }
+
             body.append("<p>Dear ").append(escapeHtml(recipientName)).append(",</p>");
+            body.append("<p>please refer the attached invoice for the month ").append(monthName).append(".</p>");
             body.append("<p>Please find your invoice details below:</p>");
 
             // Add invoice details

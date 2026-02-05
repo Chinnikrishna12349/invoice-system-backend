@@ -110,40 +110,60 @@ public class PdfService {
                         boolean isVisionAI = "Vision AI LLC".equalsIgnoreCase(cName);
 
                         // ✅ TOP LOGO (Robust Loading) - ONLY for Vision AI
-                        if (isVisionAI && company != null && company.getCompanyLogoUrl() != null) {
+                        if (isVisionAI && company != null) {
                                 try {
-                                        String logoPath = company.getCompanyLogoUrl();
                                         ImageData logoData = null;
 
-                                        // Strategy 1: Check local uploads directory (stripped of URL)
-                                        String filename = logoPath;
-                                        if (filename.contains("/uploads/")) {
-                                                filename = filename.substring(filename.indexOf("/uploads/") + 9);
-                                        } else if (filename.contains("/")) {
-                                                filename = filename.substring(filename.lastIndexOf("/") + 1);
-                                        }
+                                        // Try to load custom logo if URL is provided
+                                        if (company.getCompanyLogoUrl() != null) {
+                                                String logoPath = company.getCompanyLogoUrl();
 
-                                        File localFile = new File("uploads/" + filename);
-                                        if (localFile.exists()) {
-                                                logoData = ImageDataFactory.create(localFile.getAbsolutePath());
-                                        }
-                                        // Strategy 2: Try absolute path if provided
-                                        else if (new File(logoPath).exists()) {
-                                                logoData = ImageDataFactory.create(logoPath);
-                                        }
-                                        // Strategy 3: Try URL
-                                        else {
-                                                try {
+                                                // Strategy 1: Check local uploads directory (stripped of URL)
+                                                String filename = logoPath;
+                                                if (filename.contains("/uploads/")) {
+                                                        filename = filename
+                                                                        .substring(filename.indexOf("/uploads/") + 9);
+                                                } else if (filename.contains("/")) {
+                                                        filename = filename.substring(filename.lastIndexOf("/") + 1);
+                                                }
+
+                                                File localFile = new File("uploads/" + filename);
+                                                if (localFile.exists()) {
+                                                        logoData = ImageDataFactory.create(localFile.getAbsolutePath());
+                                                }
+                                                // Strategy 2: Try absolute path if provided
+                                                else if (new File(logoPath).exists()) {
                                                         logoData = ImageDataFactory.create(logoPath);
-                                                } catch (Exception ignored) {
-                                                        // URL fetch failed
+                                                }
+                                                // Strategy 3: Try URL
+                                                else {
+                                                        try {
+                                                                logoData = ImageDataFactory.create(logoPath);
+                                                        } catch (Exception ignored) {
+                                                                // URL fetch failed
+                                                        }
                                                 }
                                         }
 
+                                        // Fallback to default Vision AI logo if no custom logo loaded
+                                        if (logoData == null) {
+                                                try {
+                                                        java.net.URL resource = getClass()
+                                                                        .getResource("/vision-ai-logo.png");
+                                                        if (resource != null) {
+                                                                logoData = ImageDataFactory.create(resource);
+                                                        }
+                                                } catch (Exception e) {
+                                                        System.err.println("Could not load default Vision AI logo: "
+                                                                        + e.getMessage());
+                                                }
+                                        }
+
+                                        // Add logo to document if loaded
                                         if (logoData != null) {
                                                 Image logoImg = new Image(logoData);
                                                 logoImg.setHeight(convertMmToPoints(20));
-                                                logoImg.setAutoScale(true); // Maintain aspect ratio
+                                                logoImg.setAutoScale(true);
 
                                                 document.add(logoImg.setFixedPosition(convertMmToPoints(14),
                                                                 PAGE_HEIGHT - convertMmToPoints(30),
@@ -296,7 +316,7 @@ public class PdfService {
 
                         com.invoiceapp.dto.BankDetailsDTO bank = (company != null) ? company.getBankDetails() : null;
 
-                        if (isVisionAI && bank != null) {
+                        if (bank != null) {
                                 String bName = getValue(bank.getBankName());
                                 String bAcc = getValue(bank.getAccountNumber());
                                 String bIfsc = getValue(bank.getIfscCode());
